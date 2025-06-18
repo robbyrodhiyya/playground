@@ -1,7 +1,10 @@
+import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -24,6 +27,8 @@ faq_data = {
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    logger.info(f"User {user.id} ({user.first_name}) started the bot.")
     keyboard = [
         [InlineKeyboardButton(title, callback_data=title)]
         for title in faq_data.keys()
@@ -34,27 +39,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    user = query.from_user
     data = query.data
+    logger.info(f"User {user.id} ({user.first_name}) clicked: {data}")
 
     if data in faq_data:
-        sub_questions = faq_data[data]
+        sub_q = faq_data[data]
         keyboard = [
-            [InlineKeyboardButton(sub_q, callback_data=f"{data}|{sub_q}")]
-            for sub_q in sub_questions.keys()
+            [InlineKeyboardButton(q, callback_data=f"{data}|{q}")]
+            for q in sub_q
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"📂 {data}:\nPilih pertanyaan:", reply_markup=reply_markup)
     elif "|" in data:
-        category, question = data.split("|")
-        answer = faq_data[category][question]
-        await query.edit_message_text(f"❓ {question}\n\n💬 {answer}")
-
+        cat, q = data.split("|")
+        answer = faq_data[cat][q]
+        await query.edit_message_text(f"❓ {q}\n\n💬 {answer}")
+        logger.info(f"Answered: {q} -> {answer}")
 
 def main():
-    app = ApplicationBuilder().token("YOUR_BOT_TOKEN").build()
+    token = os.environ.get("BOT_TOKEN")
+    if not token:
+        raise ValueError("BOT_TOKEN is not set!")
+    app = ApplicationBuilder().token(token).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(handle_callback))
-    logger.info("Bot is running...")
+    logger.info("Bot is starting...")
     app.run_polling()
 
 if __name__ == "__main__":
